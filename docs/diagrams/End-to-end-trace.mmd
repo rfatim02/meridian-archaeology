@@ -1,0 +1,63 @@
+flowchart LR
+ subgraph TELEMETRY["TELEMETRY"]
+        FRAME@{ label: "<span style=\"padding-left:\">1. FRAME<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">Field-station telemetry<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">44-byte binary frame<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">Station: GUELPH<br></span><span style=\"padding-left:\">Year: 2025<br></span><span style=\"padding-left:\">DOY: 100<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">Contains:<br></span><span style=\"padding-left:\">• MRD1 magic<br></span><span style=\"padding-left:\">• Station ID<br></span><span style=\"padding-left:\">• Year<br></span><span style=\"padding-left:\">• DOY<br></span><span style=\"padding-left:\">• TMAX<br></span><span style=\"padding-left:\">• TMIN<br></span><span style=\"padding-left:\">• RAIN<br></span><span style=\"padding-left:\">• SRAD<br></span><span style=\"padding-left:\">• RH<br></span><span style=\"padding-left:\">• WIND<br></span><span style=\"padding-left:\">• Flags<br></span><span style=\"padding-left:\">• CRC16</span>" }
+        INGEST@{ label: "<span style=\"color:\">2. TELEMETRY INGEST</span><span style=\"color:\"><br></span><span style=\"color:\">mrd_ingest — C</span><span style=\"color:\"><br></span><span style=\"color:\"><br></span><span style=\"color:\">READ<br></span><span style=\"color:\">mrd_spool_next()<br></span><span style=\"color:\">• Reads the next raw telemetry frame</span><span style=\"color:\"><br></span><span style=\"color:\"><br></span><span style=\"color:\">PARSE &amp; VERIFY<br></span><span style=\"color:\">mrd_packet_parse()<br></span><span style=\"color:\">• Check MRD1 magic<br></span><span style=\"color:\">• Verify CRC16</span><span style=\"color:\"><br></span><span style=\"color:\"><br></span><span style=\"color:\">DECODE<br></span><span style=\"color:\">mrd_decode()<br></span><span style=\"color:\">• Convert raw sensor values<br></span><span style=\"color:\">• Divide values by 100<br></span><span style=\"color:\">• Produce engineering units</span><span style=\"color:\"><br></span><span style=\"color:\"><br></span><span style=\"color:\">QUALITY CHECK<br></span><span style=\"color:\">mrd_qc_check()<br></span>• Check physical sensor bounds <br>• Mark reading clean/suspect <br>• Record QC statistics <br>• Suspect reading is still stored (QC only counts it)" }
+  end
+ subgraph STORAGE1["READING STORAGE"]
+        READSTORE@{ label: "<span style=\"padding-left:\">3. READING STORE</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">SQLite</span><span style=\"padding-left:\">data/meridian.db</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">TABLE<br></span><span style=\"padding-left:\">reading</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">WRITE<br></span><span style=\"padding-left:\">mrd_store_append()<br></span><span style=\"padding-left:\">• INSERT OR REPLACE</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">STORED READING<br></span><span style=\"padding-left:\">• Station<br></span><span style=\"padding-left:\">• Year<br></span><span style=\"padding-left:\">• DOY<br></span><span style=\"padding-left:\">• TMAX<br></span><span style=\"padding-left:\">• TMIN<br></span><span style=\"padding-left:\">• RAIN<br></span><span style=\"padding-left:\">• SRAD</span><br>• RH<br>• WIND<br style=\"--tw-border-spacing-y:\">• Flags" }
+  end
+ subgraph ANALYTICS["ANALYTICS & ORCHESTRATION"]
+        ORCH@{ label: "<span style=\"padding-left:\">4. ORCHESTRATOR<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">Python</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">GET READINGS<br></span><span style=\"padding-left:\">Store.readings()<br></span><span style=\"padding-left:\">• Retrieve weather readings<br></span><span style=\"padding-left:\">• Gets the season's data</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">BUILD MODEL SPEC<br></span><span style=\"padding-left:\">build_spec()<br></span><span style=\"padding-left:\">• Weather readings<br></span><span style=\"padding-left:\">•</span>Hard-coded soil and latitude (deck.py)<span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">PREPARE RUN</span><span style=\"padding-left:\">S<br>ScratchRun()<br></span><span style=\"padding-left:\">• Create isolated scratch directory</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">WRITE MODEL INPUT<br></span><span style=\"padding-left:\">• Create MERIDIAN.DAT<br></span><span style=\"padding-left:\">• Fixed-width ASCII<br></span><span style=\"padding-left:\">• Ready for cropmod</span>" }
+  end
+ subgraph MODELING["NUMERICAL MODEL"]
+        MODEL@{ label: "<span style=\"padding-left:\">5. NUMERICAL MODEL<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">cropmod<br></span><span style=\"padding-left:\">FORTRAN 77 / F90</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">INPUT<br></span><span style=\"padding-left:\">MERIDIAN.DAT<br></span><span style=\"padding-left:\">• Fixed-width ASCII<br></span><span style=\"padding-left:\">• Weather/model input</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">READ INPUT<br></span><span style=\"padding-left:\">READ(...)<br></span><span style=\"padding-left:\">• Read the model deck</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">SIMULATE<br></span><span style=\"padding-left:\">WATBAL()<br></span><span style=\"padding-left:\">• Calculate soil-water balance</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">GROWTH()<br></span><span style=\"padding-left:\">• Simulate crop growth<br></span><span style=\"padding-left:\">• Calculate final yield</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">OUTPUT</span><span style=\"padding-left:\">MERIDIAN.OUT<br></span><span style=\"padding-left:\">• Fixed-width ASCII</span>" }
+        OUTPUT["6. MODEL OUTPUT
+
+    MERIDIAN.OUT
+
+    Fixed-width ASCII
+
+    Contains:
+    • Banner
+    • Station / year / days
+    • Daily model rows
+    • Soil water
+    • ET
+    • Drainage
+    • Biomass
+    • LAI
+    • YIELD"]
+  end
+ subgraph PARSING["ANALYTICS & ORCHESTRATION"]
+        PARSER@{ label: "<span style=\"padding-left:\">7. OUTPUT PARSER<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">Python<br></span><span style=\"padding-left:\">parse_artifacts()</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">READ<br></span><span style=\"padding-left:\">• Read MERIDIAN.OUT</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">PARSE BANNER<br></span><span style=\"padding-left:\">• Station<br></span><span style=\"padding-left:\">• Year<br></span><span style=\"padding-left:\">• NDAYS</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">PARSE DAILY ROWS<br></span><span style=\"padding-left:\">• Fixed-column slicing</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">PARSE YIELD<br></span><span style=\"padding-left:\">• Extract YIELD record</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">OUTPUT<br></span><span style=\"padding-left:\">ForecastResult</span>" }
+  end
+ subgraph STORAGE2["FORECAST STORAGE"]
+        FORECAST@{ label: "<span style=\"padding-left:\">8. FORECAST STORE<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">SQLite<br></span><span style=\"padding-left:\">data/meridian.db</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">TABLES<br></span><span style=\"padding-left:\">• forecast<br></span><span style=\"padding-left:\">• forecast_daily</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">WRITE<br></span><span style=\"padding-left:\">Store.save_result()<br></span><span style=\"padding-left:\">• Save forecast result<br></span><span style=\"padding-left:\">• Save daily model results</span>" }
+  end
+ subgraph SERVICE["SERVICES / API"]
+        API@{ label: "<span style=\"color:\">9. SERVICES/API<br></span><span style=\"color:\"><br>Java<br></span><span style=\"color:\">ApiServer / SeriesHandler<br></span><span style=\"color:\">Port: 8081<br></span><span style=\"color:\"><br></span><span style=\"color:\">REQUEST<br></span><span style=\"color:\">GET /api/series<br></span><span style=\"color:\">?station=GUELPH&amp;year=2025<br></span><span style=\"color:\"><br></span><span style=\"color:\">QUERY DATABASE<br></span>• Query SQLite forecast_daily<br>• Retrieve daily row (DOY, SW, ET, Drain, Biomass, LAI)<br><br>RESPONSE <br>• Convert result to JSON <br>• Return JSON to console<br>" }
+  end
+ subgraph UI["OPERATOR CONSOLE"]
+        CONSOLE@{ label: "<span style=\"padding-left:\">10. OPERATOR CONSOLE<br></span><span style=\"padding-left:\"><br>JavaScript / jQuery<br></span><span style=\"padding-left:\">Port: 8080<br></span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\">REQUEST<br></span><span style=\"padding-left:\">MeridianApi.series()</span><span style=\"padding-left:\">- Request daily series from API</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br>RECEIVE<br></span>• <span style=\"padding-left:\">HTTP JSON response</span><span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br>RENDER<br></span><span style=\"padding-left:\">renderSeriesTable()<br></span>• <span style=\"padding-left:\">Build the daily table<br></span>• Insert into #fc-series-table<span style=\"padding-left:\"><br></span><span style=\"padding-left:\"><br>FINAL<br></span><span style=\"padding-left:\">DOY 100 row (SW, ET, Drain,</span><span style=\"padding-left:\">Biomass, LAI) displayed to operator</span>" }
+  end
+    FRAME -- "Format:<br>44-byte binary" --> INGEST
+    INGEST -- Format:<br>SQL INSERT --> READSTORE
+    READSTORE -- Format:<br>SQLite rows --> ORCH
+    ORCH -- "Format:<br>MERIDIAN.DAT" --> MODEL
+    MODEL -- "Format:<br>MERIDIAN.OUT" --> OUTPUT
+    OUTPUT -- Format:<br>ASCII text --> PARSER
+    PARSER -- Format:<br>SQLite DML --> FORECAST
+    CONSOLE -- Format:<br>HTTP GET --> API
+    API -- Format:<br>SQL query --> FORECAST
+    FORECAST -- Format:<br>JSON result --> API
+    API -- Format:<br>HTTP JSON --> CONSOLE
+
+    FRAME@{ shape: rect}
+    INGEST@{ shape: rect}
+    READSTORE@{ shape: rect}
+    ORCH@{ shape: rect}
+    MODEL@{ shape: rect}
+    PARSER@{ shape: rect}
+    FORECAST@{ shape: rect}
+    API@{ shape: rect}
+    CONSOLE@{ shape: rect}
